@@ -1,0 +1,9 @@
+# Read me
+
+This R project contains all of the code and data to run the analysis in the manuscript "Spatiotemporal variability of abundance size-spectra in streams across North America" by Justin Pomeranz and Jeff Wesner. 
+
+Please address any questions to the corresponding author, Justin Pomeranz, at jfpomeranz@gmail.com 
+
+The scripts to run the analysis are located in the "scripts" folder, and should be run in order (e.g., 1_dl_wrangle...R, 2_mat_c_....R). The "custom_functions.R" script contains functions written for this analysis and is sourced within analysis scripts where needed. 
+
+To download the data from NEON and calculate dry mass from length weight regressions, run script 1. Alternatvely, you can skip straight to the analysis in script 2 by loading the "macro_dw.RDS" file in the "data" folder. This data was downloaded on October 26th 2020, and is the data that is analyzed and presented in the manuscript. 
