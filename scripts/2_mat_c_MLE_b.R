@@ -190,14 +190,14 @@ mle.dw <- mle.dw %>%
 # this should join by = c("siteID", "year")
 mle.dw <- inner_join(mle.dw, site.info)
 
-
+saveRDS(mle.dw, "data/mle_b_data.RDS")
 
 # Bayesian Model ----------------------------------------------------------
 
 b.mod <- brm(data = mle.dw,
                b ~ mat.c + (1 |siteID) + (1|year), 
                family = gaussian(),
-               prior = c(prior(normal(0,1),
+               prior = c(prior(normal(0,0.1),
                                class = "b"),
                          prior(normal(-1.5,1),
                                class = "Intercept"),
@@ -212,7 +212,7 @@ b.mod <- brm(data = mle.dw,
                cores = 4)
 
 # save model
-saveRDS(b.mod, "data/b.mle.mat.c.RDS")
+saveRDS(b.mod, "data/mle_b_mod.RDS")
 
 # model outputs and summaries
 b.mod
@@ -220,9 +220,9 @@ fixef(b.mod)
 plot(conditional_effects(b.mod), points = TRUE)
 
 # posterior predictive check
-# Supplemental figure S4
+# Supplemental figure S4 (saved in script 5)
 pp_check(b.mod, type = "boxplot")
-ggsave("plots/SI_b_pp.jpeg")
+
 
 # slope positive or negative?
 post.mod <- posterior_samples(b.mod)

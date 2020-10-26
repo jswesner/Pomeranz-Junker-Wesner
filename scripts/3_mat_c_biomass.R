@@ -38,6 +38,7 @@ biomass <- dw %>%
 # add mat.c data
 biomass <- inner_join(biomass,
                       site.info)
+saveRDS(biomass, "data/sample_biomass_data.RDS")
 
 # fit bayes
 gamma.mod <- brm(data = biomass,
@@ -45,7 +46,7 @@ gamma.mod <- brm(data = biomass,
                    (1 |siteID) + (1|year), 
                  family = Gamma(link = "log"),
                  prior = c(
-                   prior(normal(0,1), class = "b"),
+                   prior(normal(0,0.1), class = "b"),
                    prior(normal(7, 1), class = "Intercept"),
                    prior(exponential(2), class="sd")),
                  chains = 4, 
@@ -55,7 +56,7 @@ gamma.mod <- brm(data = biomass,
                  control = list(adapt_delta = 0.99))
 
 # save gamma model
-saveRDS(gamma.mod, "data/gamma.mat.c.RDS")
+saveRDS(gamma.mod, "data/biomass_gamma_mod.RDS")
 
 # gamma model output and summaries
 gamma.mod
@@ -63,9 +64,8 @@ fixef(gamma.mod)
 plot(conditional_effects(gamma.mod), points = TRUE)
 
 # posterior predictive checks
-# Supplemental figure S5
+# Supplemental figure S5 (saved in script 5)
 pp_check(gamma.mod, type = "boxplot")
-ggsave("plots/SI_biomass_pp.jpeg")
 
 # slope positive or negative?
 post.mod <- posterior_samples(gamma.mod)
