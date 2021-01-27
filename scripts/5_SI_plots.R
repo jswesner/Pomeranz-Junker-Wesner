@@ -8,12 +8,18 @@ library(cowplot)
 
 
 # load data and models 
-b.mod <- readRDS("data/mle_b_mod.RDS")
-b.mod.data <- readRDS("data/mle_b_data.RDS")
+b.mod <- readRDS("results/b_mat_c_brms.RDS")
+b.mod.data <- readRDS("data/MLEbins.RDS")
+b.mod.data$mat.c <- scale(b.mod.data$mat.c)
 
+ID_mat <- b.mod.data %>%
+  select(ID, mat.c)
 
-biomass.mod <- readRDS("data/biomass_gamma_mod.RDS")
-biomass.mod.data <- readRDS("data/sample_biomass_data.RDS")
+biomass.mod <- readRDS("results/log_mg_mat_c_brms.RDS")
+biomass.mod.data <- readRDS("data/mean_biomass_latitude.RDS")
+biomass.mod.data <- biomass.mod.data %>%
+  left_join(ID_mat)
+biomass.mod.data$mat.c <- scale(biomass.mod.data$mat.c)
 
 
 # 
@@ -102,16 +108,16 @@ prior_post_dm <- draws_dm_long %>%
 # Figures S2 and S3 -------------------------------------------------------
 
 
-# figure S2
+# figure S3
 ggsave(prior_post_b,
-       file = "plots/SI2_prior_post_b.jpg",
+       file = "plots/SI3_prior_post_b.jpg",
        dpi = 500,
        width = 7,
        height = 4)
 
-#figure S3
+#figure S4
 ggsave(prior_post_dm,
-       file = "plots/SI3_prior_post_dm.jpg",
+       file = "plots/SI4_prior_post_dm.jpg",
        dpi = 500,
        width = 7,
        height = 4)
@@ -136,7 +142,7 @@ mean_year_sds <- draws_b_wide %>%
 draws_b_withx <- draws_b_wide %>%
   group_by(model) %>% 
   sample_n(1000) %>%  #randomly choose 2000 iterations from each group to save space
-  expand_grid(mat.c = unique(b.mod.data$mat.c)) %>% #add degree days
+  expand_grid(mat.c = unique(b.mod.data$mat.c)) %>% #add temperature
   left_join(b.mod.data %>%
               distinct(mat.c, siteID, year)) #add info for site and year
 
@@ -163,20 +169,22 @@ post_prior_predict <- draws_b_withx %>%
 
 # Figure S1 panels a and b
 plot_slope_postprior <- post_prior_predict %>% 
+  #filter(iter < 1000) %>%
   mutate(model = fct_relevel(model, "prior")) %>% 
   mutate(model = case_when(model == "prior"~ "a) Prior", TRUE ~ "b) Posterior")) %>% 
   ggplot(aes(x = mat.c, y = pred)) + 
   geom_line(aes(group = interaction(model,b)), alpha = 0.1) +
   facet_wrap(~model) +
   guides(color = F) +
-  labs(y = "b",
-       x = "Mean Annual Temperature (\u00B0C)") +
-  geom_point(data = b.mod.data %>%
-               mutate(model = "b) Posterior",
-                      model = fct_relevel(model,"b) Posterior",
-                                          after = 2)),
-             aes(y = b),
-             size = 0.5) +
+  labs(y = expression(lambda),
+       x = "Std(Mean Annual Temperature") +
+  geom_point(
+    data = b.mod.data %>%
+      mutate(model = "b) Posterior",
+             model = fct_relevel(model,"b) Posterior",
+                                 after = 2)),
+    aes(y = b),
+    size = 0.5) +
   theme_classic() +
   NULL
 
@@ -221,7 +229,8 @@ post_prior_predict <- draws_dm_withx %>%
                           TRUE ~ fitted)) #same but with random offsets added.
 
 # fig S1 panel c and d
-plot_biomass_postprior <- post_prior_predict %>% 
+plot_biomass_postprior <- post_prior_predict %>%
+  #filter(iter<= 1000) %>%
   mutate(model = fct_relevel(model, "prior")) %>% 
   mutate(model = 
            case_when(model == "prior" ~ "c) Prior",
@@ -233,13 +242,14 @@ plot_biomass_postprior <- post_prior_predict %>%
   facet_wrap(~model) +
   guides(color = F) +
   labs(y = expression(paste("Community Biomass (mgDM/",m^2,")")),
-       x = "Mean Annual Temperature (\u00B0C)") +
-  geom_point(data = biomass.mod.data %>%
-               mutate(model = "d) Posterior",
-                      model = fct_relevel(model,"d) Posterior",
-                                          after = 2)),
-             aes(y = sample_biomass),
-             size = 0.5) +
+       x = "Std(Mean Annual Temperature") +
+  geom_point(
+    data = biomass.mod.data %>%
+      mutate(model = "d) Posterior",
+             model = fct_relevel(model,"d) Posterior",
+                                 after = 2)),
+    aes(y = log10(u_biomass)),
+    size = 0.5) +
   theme_classic() +
   scale_y_log10() +
   NULL
@@ -252,7 +262,7 @@ prior_post_preds <- plot_grid(plot_slope_postprior,
 
 # save figure S1
 ggsave(prior_post_preds,
-       file = "plots/SI1_prior_post_preds.jpg",
+       file = "plots/SI2_prior_post_preds.jpg",
        dpi = 500,
        width = 7,
        height = 7)
@@ -261,10 +271,10 @@ ggsave(prior_post_preds,
 # Posterior Predictive Checks # Figs S4 and S5 ---------------------------------------------
 
 pp_check(b.mod, type = "boxplot")
-ggsave("plots/SI4_b_pp.jpg")
+ggsave("plots/SI5_b_pp.jpg")
 
 pp_check(biomass.mod, type = "boxplot")
-ggsave("plots/SI5_biomass_pp.jpg")
+ggsave("plots/SI6_biomass_pp.jpg")
 
 
 
@@ -275,13 +285,13 @@ ggsave("plots/SI5_biomass_pp.jpg")
 # update the slope model by halving the SD prior values
 b.mod_sd0.5 <- update(b.mod,
                       b.mod,
-                      prior = c(prior(normal(0,0.05),
+                      prior = c(prior(normal(0,0.125),
                                       class = "b"),
                                 prior(normal(-1.5,0.5),
                                       class = "Intercept"),
-                                prior(exponential(2),
+                                prior(exponential(1),
                                       class = "sigma"),
-                                prior(exponential(2),
+                                prior(exponential(1),
                                       class = "sd")),
                       iter = 1000,
                       chains = 2)
@@ -289,13 +299,13 @@ b.mod_sd0.5 <- update(b.mod,
 # update the slope model by doubling the SD prior values
 b.mod_sd2 <- update(b.mod,
                     b.mod,
-                    prior = c(prior(normal(-0,0.2),
+                    prior = c(prior(normal(-0,0.5),
                                     class = "b"),
                               prior(normal(-1.5,2),
                                     class = "Intercept"),
-                              prior(exponential(2),
+                              prior(exponential(4),
                                     class = "sigma"),
-                              prior(exponential(2),
+                              prior(exponential(4),
                                     class = "sd")),
                     iter = 1000,
                     chains = 2)
@@ -304,38 +314,40 @@ b.mod_sd2 <- update(b.mod,
 
 # biomass model
 # update the biomass model by halving the SD prior values
-biomass.mod_sd0.5 <- brm(sample_biomass ~ mat.c +
+biomass.mod_sd0.5 <- brm(log10(u_biomass) ~ mat.c +
                            (1|siteID) +
                            (1|year),
                        data = biomass.mod.data,
                        family = Gamma(link = "log"),
-                       prior = c(prior(normal(0, 0.05),
+                       prior = c(prior(normal(0, 0.25),
                                        class = "b"),
-                                 prior(normal(7, 0.5),
+                                 prior(normal(1.1, 0.125),
                                        class = "Intercept"),
                                  prior(gamma(0.01, 0.01),
                                        class = "shape"),
-                                 prior(exponential(2),
+                                 prior(exponential(1),
                                        class = "sd")),
                        chains = 2,
+                       cores = 2,
                        iter = 1000,
                        sample_prior = TRUE)
 
 # update the biomass model by doubling the SD prior values
-biomass.mod_sd2 <- brm(sample_biomass ~ mat.c +
+biomass.mod_sd2 <- brm(log10(u_biomass) ~ mat.c +
                          (1|siteID) +
                          (1|year),
                    data = biomass.mod.data,
                    family = Gamma(link = "log"),
-                   prior = c(prior(normal(0, 0.2),
+                   prior = c(prior(normal(0, 1),
                                    class = "b"),
-                             prior(normal(7, 2),
+                             prior(normal(1.1, 0.5),
                                    class = "Intercept"),
                              prior(gamma(0.01, 0.01),
                                    class = "shape"),
-                             prior(exponential(2),
+                             prior(exponential(4),
                                    class = "sd")),
                    chains = 2,
+                   cores = 2,
                    iter = 1000,
                    sample_prior = TRUE)
 
@@ -399,7 +411,7 @@ prior_sens_plot <- all_b_sens %>%
 
 
 ggsave(prior_sens_plot,
-       file = "plots/SI6_prior_sens.jpg",
+       file = "plots/SI7_prior_sens.jpg",
        dpi = 500,
        width = 7,
        height = 5)
