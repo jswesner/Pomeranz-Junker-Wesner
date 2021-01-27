@@ -1,0 +1,34 @@
+---
+title: "S2: Bounded Power Law Fits"
+author: "Justin Pomeranz - J Pomz"
+date: "12/23/2020"
+output: pdf_document
+header-includes:
+    - \usepackage{setspace}\doublespacing
+    - \usepackage{lineno}
+    - \linenumbers
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(here)
+```
+
+## S2: Bounded Power Law Fits
+```{r, results = 'asis'}
+plots <- list.files(here("results/isd_plots_SI/"))
+counter = 1
+    for(i in plots){
+       filename <- here(file.path("results/isd_plots_SI", i))
+       if(counter==1){
+         cat("![Individual size distribution and MLEbins fit (red solid curve) with 95% confidence intervals (red dashed curves). The y-axis is on the logarithmic scale. The text in the plot gives the site name and the year and month of the sample and the MLE for the size-spectrum exponent b.](",filename,")")
+         cat("\n\n\\pagebreak\n")
+         counter = counter+1
+       }
+       if(counter!=1){
+         cat("![Individual size distribution and MLEbins fit. Details as in Figure 1.](",filename,")")
+         cat("\n\n\\pagebreak\n")
+       }
+     }
+```
+

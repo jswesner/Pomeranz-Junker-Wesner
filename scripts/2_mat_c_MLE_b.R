@@ -39,7 +39,7 @@ MLE_tidy <- function(df, rsp_var){
   PLB.minNegLL = PLB.minLL$minimum
   
   ## 95% CI calculation
-  bvec = seq(PLB.bMLE - 0.5, PLB.bMLE + 0.5, 1e-05)
+  bvec = seq(PLB.bMLE - 1, PLB.bMLE + 1, 1e-05) # original =-0.5
   PLB.LLvals = vector(length = length(bvec))
   for (i in 1:length(bvec)) {
     PLB.LLvals[i] = negLL.PLB(bvec[i],
@@ -101,7 +101,10 @@ isd_plot <- function (x, b, confVals = NULL,
          labels = rep("", 11), tcl = -0.2, mgp = mgpVal)
   }
   x.PLB = seq(min(x), max(x), length = 1000)
-  y.PLB = (1 - pPLB(x = x.PLB, b = b, xmin = min(x.PLB), xmax = max(x.PLB))) * 
+  y.PLB = (1 - pPLB(x = x.PLB,
+                    b = b,
+                    xmin = min(x.PLB),
+                    xmax = max(x.PLB))) * 
     length(x)
   lines(x.PLB, y.PLB, col = "red")
   if (panel == "b") {
@@ -163,6 +166,10 @@ dw <- dw %>%
   #i.e. if count = 10, duplicate that row 10 times
   uncount(count)
 
+# dw %>% group_by(siteID, collectDate) %>%
+#   summarize(min_dw = min(dw),
+#             max_dw = max(dw)) %>% View
+
 
 # MLE ---------------------------------------------------------------------
 
@@ -179,6 +186,20 @@ mle.dw <- dw %>%
   mutate(mle = map(data, MLE_tidy, rsp_var = "dw")) %>%
   unnest(cols = mle)
 
+median(mle.dw$b)
+
+b_filt <- dw %>%
+  filter(dw >=0.0064) %>%
+  mutate(date = as.Date(collectDate)) %>%
+  group_by(siteID, collectDate) %>%
+  # create list-column
+  nest() %>% 
+  # estimate b and 95% CI
+  mutate(mle = map(data, MLE_tidy, rsp_var = "dw")) %>%
+  unnest(cols = mle)
+median(b_filt$b)
+
+mle.dw <- b_filt
 # separate year out of collectDate column
 mle.dw <- mle.dw %>%
   separate(collectDate,
@@ -330,7 +351,7 @@ site_b_est %>%
       quantiles = 2) +
     scale_fill_viridis_c(alpha = 0.5, option = "plasma") +
     theme_bw() +
-    xlim(c(-1.5, -1)) +
+    #xlim(c(-1.5, -1)) +
     labs(y = "Site",
          x = "Slope estimate") +
     geom_text(aes(x = -Inf, y = Inf, label = "a)"),

@@ -127,22 +127,29 @@ bin_and_center <- function(data, var, breaks, ...){
   breaks_orig = binned_hist$breaks[1:(length(breaks)-1)]
   breaks_offset = binned_hist$breaks[2:length(breaks)]
   # total bin width = right edge - left edge
-  break_width = breaks_offset - breaks_orig
-  count = binned_hist$counts 
+  bin_width = breaks_offset - breaks_orig
+  count = binned_hist$counts
+  log_mids = log10(binned_hist$mids)
+  biomass = count * 10**log_mids
+  nbiomass = log10(biomass / bin_width)
   dataout = data.frame(
+    count = count,
+    log_count = log10(count),
     # normalize counts =count / width (White et al 1997)
-    log_count_corrected = log10(count / break_width),
+    log_count_corrected = log10(count / bin_width),
     # original midpoint of bin log10 transformed
-    log_mids = log10(binned_hist$mids),
-    log_mids_center = NA)
+    log_mids = log_mids,
+    bin_width = bin_width,
+    biomass = biomass,
+    nbiomass = nbiomass)
   # remove bins with 0 counts
   # -Inf comes from log10(count / break_width) above
   dataout = dataout[dataout$log_count_corrected !=-Inf,]
-  # recenter data at x=0
-  mid_row = ceiling(nrow(dataout)/2)
-  # subtract value of mid row from all mids
-  dataout$log_mids_center = 
-    dataout[,"log_mids"] - dataout[mid_row,"log_mids"]
+  # # recenter data at x=0
+  # mid_row = ceiling(nrow(dataout)/2)
+  # # subtract value of mid row from all mids
+  # dataout$log_mids_center = 
+  #   dataout[,"log_mids"] - dataout[mid_row,"log_mids"]
   dataout
 }
 
