@@ -4,6 +4,12 @@ library(tidyverse)
 library(sizeSpectra)
 library(lubridate)
 
+# Create folder to catch all SI plots if it doesn't already exist
+if(!file.exists("results/isd_plots_SI")){
+  dir.create("results/isd_plots_SI")
+}
+
+
 # modified function to plot MLE estimate of size spectra (ISD)
 isd_plot <- function (x, b, confVals = NULL,
                       panel = "b", log.xy = "xy",
