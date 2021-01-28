@@ -226,20 +226,20 @@ comp <- readRDS("results/perkins-compare.RDS")
 test_method <- left_join(test_method, comp)
 test_method <- left_join(test_method, site.info)
 
-# plot all slope estimates and add regression line by method
-test_method %>%
-  mutate(MLBExponent = MLBExponent - 1) %>%
-  pivot_longer(cols = 3:8,
-               names_to = "method",
-               values_to = "value") %>%
-  left_join(site.info) %>%
-  ggplot(aes(x = mat.c, 
-             y = value, 
-             color = method)) +
-  geom_point() +
-  stat_smooth(method = "lm",
-              se = FALSE) +
-  theme_bw()
+# # plot all slope estimates and add regression line by method
+# test_method %>%
+#   mutate(MLBExponent = MLBExponent - 1) %>%
+#   pivot_longer(cols = 3:8,
+#                names_to = "method",
+#                values_to = "value") %>%
+#   left_join(site.info) %>%
+#   ggplot(aes(x = mat.c, 
+#              y = value, 
+#              color = method)) +
+#   geom_point() +
+#   stat_smooth(method = "lm",
+#               se = FALSE) +
+#   theme_bw()
 
 
 
@@ -296,7 +296,7 @@ slope_q %>% pivot_wider(names_from = q, values_from = q_val) %>%
   geom_line(stat = "smooth",
             method = "lm",
             size = 1.5, 
-            alpha = 0.75) +
+            alpha = 1) +
   theme_bw()+
   ylim(c(-2.8, 0.5)) +
   theme(legend.position = "none") +

@@ -315,14 +315,7 @@ stacking_weights(g_kfold_point)
 
 # average biomass ---------------------------------------------------------
 
-biomass_mean <- biomass %>%
-  group_by(ID) %>%
-  summarize(u_biomass = mean(sample_biomass),
-            sd_biomass = sd(sample_biomass))
 
-biomass_mean <- left_join(biomass_mean, ID_key)
-biomass_mean <- left_join(biomass_mean, site.info)
-saveRDS(biomass_mean, "data/mean_biomass_latitude.RDS")
 
 # fit bayes
 mean.mod <- brm(data = biomass_mean,

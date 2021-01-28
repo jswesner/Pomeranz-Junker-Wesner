@@ -114,27 +114,27 @@ dw <- dw %>%
 dw <- dw %>%
   filter(!is.na(dw), !is.na(no_m2)) 
 
-# i.e. HOPB has 2 samples from same date (2017-4-12) but different times
-# MAYF was collected on 2 dates in 2017-07, combining to one sample
-dw %>%
-  filter(siteID == "HOPB" | siteID == "MAYF") %>%
-  select(siteID, collectDate) %>%
-  unique() %>%
-  arrange(siteID, collectDate)
-
-# change HOPB 2017-04-12 13:23:00 --> 2017-04-12 16:00
-dw[
-  dw$siteID == "HOPB" &
-    dw$collectDate == 
-    as.POSIXct("2017-04-12 13:23:00", tz = "GMT"),
-  "collectDate"] <- as.POSIXct("2017-04-12 16:00:00", tz = "GMT")
-
-# change MAYF 2017-07-18 14:51:00 to 2017-07-20 14:37:00
-dw[
-  dw$siteID == "MAYF" &
-    dw$collectDate == 
-    as.POSIXct("2017-07-18 14:51:00", tz = "GMT"),
-  "collectDate"] <- as.POSIXct("2017-07-20 14:37:00", tz = "GMT")
+# # i.e. HOPB has 2 samples from same date (2017-4-12) but different times
+# # MAYF was collected on 2 dates in 2017-07, combining to one sample
+# dw %>%
+#   filter(siteID == "HOPB" | siteID == "MAYF") %>%
+#   select(siteID, collectDate) %>%
+#   unique() %>%
+#   arrange(siteID, collectDate)
+# 
+# # change HOPB 2017-04-12 13:23:00 --> 2017-04-12 16:00
+# dw[
+#   dw$siteID == "HOPB" &
+#     dw$collectDate == 
+#     as.POSIXct("2017-04-12 13:23:00", tz = "GMT"),
+#   "collectDate"] <- as.POSIXct("2017-04-12 16:00:00", tz = "GMT")
+# 
+# # change MAYF 2017-07-18 14:51:00 to 2017-07-20 14:37:00
+# dw[
+#   dw$siteID == "MAYF" &
+#     dw$collectDate == 
+#     as.POSIXct("2017-07-18 14:51:00", tz = "GMT"),
+#   "collectDate"] <- as.POSIXct("2017-07-20 14:37:00", tz = "GMT")
 
 # modify data structure
 dw <- dw %>%

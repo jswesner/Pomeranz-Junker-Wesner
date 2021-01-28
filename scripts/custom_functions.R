@@ -221,3 +221,182 @@ plot_prior_vs_posterior <- function(model,
                                  "log10degree_days",
                                  "log_mids_center:log10degree_days"))
 }
+
+
+est_dw_range <- function(x){
+  # x = inv_taxonomyProcessed table from NEON data product "DP1.20120.001" with LW coefficients added using the LW_coeff() function, and the pertinent data columns from the NEON "fieldData" table (data product DP1.20120.001) already added
+  
+  # function uses tidyverse verbs and functions for ease of programming
+  require(tidyverse)
+  
+  # caluclate bin windths
+  # sizeClass = length of individual in mm
+  # NEON data are measured to the nearest 1 mm. Therefore, the minimum possible measurement is sizeclass -0.5 and the maximum is size class + 0.49
+  # e.g., if sizeClass == 5 mm, the minimum would be 5 - 0.5 = 4.5 and the maximum would be 5 + 0.49 = 5.49, and min/max for sizeclass == 6 is 5.5 and 6.49. 
+  # note, for sizeclass == 1 we assume that the bin width is 0.5 to 1.49 (i.e. anything smaller than 0.5 is unlikely to be seen and measured). This assumes that all bin widths are the same size. 
+  x <- x %>% 
+    mutate(
+      sizeClassMin = sizeClass - 0.5,
+      sizeClassMax = sizeClass + 0.49,
+      # calculate dw based on different formula types
+      dw_bin = # this is the dry weight estimate using the measured sizeClass
+        case_when(
+          formula_type == 1 ~ a * sizeClass^b,
+          formula_type == 2 ~ exp(a + b * log(sizeClass))),
+      dw_min = # this is the dry weight estimate using the minimum edge of the measured sizeClass bin
+        case_when(
+          formula_type == 1 ~ a * sizeClassMin^b,
+          formula_type == 2 ~ exp(a + b * log(sizeClassMin))),
+      dw_max = # this is the dry weight estimate using the minimum edge of the measured sizeClass bin
+        case_when(
+          formula_type == 1 ~ a * sizeClassMax^b,
+          formula_type == 2 ~ exp(a + b * log(sizeClassMax))))
+  return(x)
+}
+
+MLE_tidy <- function(df, rsp_var){
+  # define variables
+  x <- df[[rsp_var]]
+  xmin = min(x)
+  xmax = max(x)
+  log.x = log(x)
+  sum.log.x = sum(log.x)
+  
+  # initial starting point for parameter estimate
+  PL.bMLE = 1/(log(min(x)) - sum.log.x/length(x)) - 1
+  
+  # non-linear minimization  
+  PLB.minLL = nlm(negLL.PLB, 
+                  p = PL.bMLE, x = x, n = length(x), 
+                  xmin = xmin, xmax = xmax,
+                  sumlogx = sum.log.x)
+  
+  # estimate for b
+  PLB.bMLE = PLB.minLL$estimate
+  # minimum estimate of b
+  PLB.minNegLL = PLB.minLL$minimum
+  
+  ## 95% CI calculation
+  bvec = seq(PLB.bMLE - 1, PLB.bMLE + 1, 1e-05) # original =-0.5
+  PLB.LLvals = vector(length = length(bvec))
+  for (i in 1:length(bvec)) {
+    PLB.LLvals[i] = negLL.PLB(bvec[i],
+                              x = x,
+                              n = length(x), 
+                              xmin = xmin,
+                              xmax = xmax,
+                              sumlogx = sum.log.x)
+  }
+  critVal = PLB.minNegLL + qchisq(0.95, 1)/2
+  bIn95 = bvec[PLB.LLvals < critVal]
+  # confidence interval
+  PLB.MLE.bConf = c(min(bIn95), max(bIn95))
+  if (PLB.MLE.bConf[1] == min(bvec) | 
+      PLB.MLE.bConf[2] == max(bvec)) {
+    dev.new()
+    plot(bvec, PLB.LLvals)
+    abline(h = critVal, col = "red")
+    stop("Need to make bvec larger - see R window")
+  }
+  # return b estimate and min/max 95% CI
+  return(data.frame(b = PLB.bMLE,
+                    minCI = min(bIn95),
+                    maxCI = max(bIn95)))
+}
+
+MLE_bin_tidy <- function(df){
+  test1 <- all( c("wmin", "wmax", "Number") %in% names(df))
+  if(test1 == FALSE){
+    stop("DF needs to have 'wmin', 'wmax' and 'Number' columns")
+  }
+  n = sum(df$Number)
+  xmin = min(df$wmin)
+  xmax = max(df$wmax)
+  
+  like  <- calcLike(negLL.fn = negLL.PLB.bins.species,
+                    p = -1.9,
+                    suppress.warnings = TRUE,
+                    dataBinForLike = df,
+                    n = n,
+                    xmin = xmin,
+                    xmax = xmax)
+  
+  return(data.frame(b = like$MLE,
+                    bL95 = like$conf[1],
+                    bU95 = like$conf[2]))
+}
+
+# modified function to plot MLE estimate of size spectra (ISD)
+isd_plot <- function (x, b, confVals = NULL,
+                      panel = "b", log.xy = "xy",
+                      mgpVals = c(1.6, 0.5, 0),
+                      inset = c(0, -0.04),
+                      xlim_global = NA,
+                      ylim_global = NA, ...) 
+{
+  if (is.na(xlim_global[1])) {
+    xlim_global = c(min(x), max(x))
+  }
+  if (is.na(ylim_global[1])) {
+    ylim_global = c(1, length(x))
+  }
+  plot(sort(x, decreasing = TRUE), 1:length(x), log = log.xy, 
+       xlab = expression(paste("Values, ", italic(x))), 
+       ylab = expression(
+         paste("Number of ", values >= x), sep = ""),
+       mgp = mgpVals, xlim = xlim_global, 
+       ylim = ylim_global, axes = FALSE)#, ...)
+  xLim = 10^par("usr")[1:2]
+  yLim = 10^par("usr")[3:4]
+  if (log.xy == "xy") {
+    logTicks(xLim, yLim, xLabelSmall = c(5, 50, 500))
+  }
+  if (log.xy == "x") {
+    mgpVal = c(2, 0.5, 0)
+    logTicks(xLim, yLim = NULL, xLabelSmall = c(5, 50, 500), 
+             mgpVal = mgpVal)
+    yBig = c(0, 500, 1000)
+    axis(2, at = yBig, labels = yBig, mgp = mgpVal)
+    axis(2, seq(yBig[1], yBig[length(yBig)], by = 100),
+         labels = rep("", 11), tcl = -0.2, mgp = mgpVal)
+  }
+  x.PLB = seq(min(x), max(x), length = 1000)
+  y.PLB = (1 - pPLB(x = x.PLB,
+                    b = b,
+                    xmin = min(x.PLB),
+                    xmax = max(x.PLB))) * 
+    length(x)
+  lines(x.PLB, y.PLB, col = "red")
+  if (panel == "b" & !is.null(confVals)) {
+    for (i in c(1, length(confVals))) {
+      lines(x.PLB,
+            (1 - pPLB(x = x.PLB, b = confVals[i],
+                      xmin = min(x.PLB),
+                      xmax = max(x.PLB))) * length(x), 
+            col = "red", lty = 2)
+    }
+    #legend("topright", "(b)", bty = "n", inset = inset)
+  }
+  if (panel == "h") {
+    legJust(c("(h) MLE",
+              paste("b=", signif(b, 3), sep = "")),
+            inset = inset, logxy = TRUE)
+  }
+}
+
+# helper function to plot across lists of results
+plot_b_est <- function(dat, b, ...){
+  isd_plot(dat$dw,
+           b = b$b,
+           confVals = c(b$confMin, b$confMax))
+  # add labels
+  
+  mtext(paste(dat$siteID[1]#, 
+              #str_sub(as.character(
+              #  dat$collectDate[1], 1, 7))
+  ),
+  side = 3, line = -6, adj = 0.01)
+  mtext(paste0("b = ", round(b$b, digits = 2)),
+        side = 3, line = -7, adj = 0.05)
+  # some of the plots have a text error in b-estimate, not sure why
+}
