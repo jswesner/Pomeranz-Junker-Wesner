@@ -10,6 +10,11 @@ library(ggthemes)
 library(brms)
 library(viridis)
 
+# create plots directory, if it doesn't already exist.
+# this should have already been run in script 4, but including here in case people run scripts out of order. 
+if(!dir.exists("plots")){
+        dir.create("plots")
+}
 
 # Figure 1 main text ------------------------------------------------------
 

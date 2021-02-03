@@ -201,6 +201,14 @@ fixef(mod5)
 plot(conditional_effects(mod5), points = TRUE)
 
 
+# Save data for plots -----------------------------------------------------
+
+# create plots directory, if it doesn't already exist.
+# this should have already been run in script 4, but including here in case people run scripts out of order. 
+if(!dir.exists("plots")){
+  dir.create("plots")
+}
+
 # plot fitted log 10 mg mat.c coefficient
 mg_dist_plot <- mod4 %>%
   spread_draws(b_Intercept,

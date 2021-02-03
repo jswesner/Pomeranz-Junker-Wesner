@@ -6,6 +6,11 @@ library(tidyverse)
 library(janitor)
 library(cowplot)
 
+# create plots directory, if it doesn't already exist.
+# this should have already been run in script 4, but including here in case people run scripts out of order. 
+if(!dir.exists("plots")){
+  dir.create("plots")
+}
 
 # load data and models 
 b.mod <- readRDS("results/b_mat_c_brms.RDS")

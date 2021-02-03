@@ -211,6 +211,11 @@ temp_beta_b <- readRDS("results/b_mat_coef_table.RDS")
 
 # plots with tidybayes ----------------------------------------------------
 
+# create plots directory, if it doesn't already exist. 
+if(!dir.exists("plots")){
+  dir.create("plots")
+}
+
 # plots with tidybayes
 get_variables(mod5)
 
