@@ -117,7 +117,32 @@ loo_6 <- loo(mod6,
 
 # Allegedly you should be able to set seed=TRUE for the future package, but can't figure out how to do it. 
 
-# The results I got previously (before the update) were  for now, I'm using as-is
+# The results I got previously (before the update) were similar. for now, I'm using as-is
+
+# summarize model coefficients for SI ####
+coef_mods_list <- list(global = as.data.frame(fixef(mod1)),
+                       nutrient = as.data.frame(fixef(mod2)),
+                       Climate  = as.data.frame(fixef(mod3)),
+                       canopy = as.data.frame(fixef(mod4)),
+                       T_only = as.data.frame(fixef(mod5)),
+                       resources = as.data.frame(fixef(mod6)))
+coef_names_list <- list(row.names(fixef(mod1)),
+                        row.names(fixef(mod2)),
+                        row.names(fixef(mod3)),
+                        row.names(fixef(mod4)),
+                        row.names(fixef(mod5)),
+                        row.names(fixef(mod6)))
+coef_mods_table <- map2(coef_mods_list,
+                        coef_names_list,
+                        ~cbind(.x, coef_name = .y))
+
+coef_mods_table <- bind_rows(coef_mods_table, .id = "MOD")
+row.names(coef_mods_table) <- NULL
+coef_mods_table[,2:5] <- round(coef_mods_table[,2:5], 3)
+coef_mods_table <- coef_mods_table[,c(1, 6, 2, 4, 5)]
+write_csv(coef_mods_table, "results/all_biomass_model_coef.csv")
+
+# model weights ####
 
 (b_weights <- loo_model_weights(
   list(global1 = loo_1,

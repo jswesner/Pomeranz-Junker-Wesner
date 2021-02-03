@@ -90,11 +90,35 @@ mod5 <- update(mod1,
                formula. = . ~ . -map.mm -tdn -tdp -canopy,
                cores = 4)
 # resources - autochthonous resources = TDN +TDP
-# Allochthonous rtesources = canopy
+# Allochthonous resources = canopy
 mod6 <- update(mod1,
                formula. = . ~ . -map.mm,
                cores = 4)
 
+# summarize model coefficients for SI ####
+coef_mods_list <- list(global = as.data.frame(fixef(mod1)),
+                       nutrient = as.data.frame(fixef(mod2)),
+                       Climate  = as.data.frame(fixef(mod3)),
+                       canopy = as.data.frame(fixef(mod4)),
+                       T_only = as.data.frame(fixef(mod5)),
+                       resources = as.data.frame(fixef(mod6)))
+coef_names_list <- list(row.names(fixef(mod1)),
+                        row.names(fixef(mod2)),
+                        row.names(fixef(mod3)),
+                        row.names(fixef(mod4)),
+                        row.names(fixef(mod5)),
+                        row.names(fixef(mod6)))
+coef_mods_table <- map2(coef_mods_list,
+                        coef_names_list,
+                        ~cbind(.x, coef_name = .y))
+
+coef_mods_table <- bind_rows(coef_mods_table, .id = "MOD")
+row.names(coef_mods_table) <- NULL
+coef_mods_table[,2:5] <- round(coef_mods_table[,2:5], 3)
+coef_mods_table <- coef_mods_table[,c(1, 6, 2, 4, 5)]
+write_csv(coef_mods_table, "results/all_b_model_coef.csv")
+
+# model weights ####
 # leave-one-out cross validation with bayesian stacking weights
 loo_1 <- loo(mod1,
              reloo = TRUE,
@@ -183,6 +207,7 @@ temp_beta_b$mod <- c("Global",
                      "Resources")
 temp_beta_b$weight <- round(b_weights, 3)
 saveRDS(temp_beta_b, "results/b_mat_coef_table.RDS")
+temp_beta_b <- readRDS("results/b_mat_coef_table.RDS")
 
 # plots with tidybayes ----------------------------------------------------
 
