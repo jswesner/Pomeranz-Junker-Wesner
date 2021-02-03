@@ -4,3 +4,6 @@
 .Ruserdata
 
 results/isd_plots_SI/
+plots/
+
+/results/*.csv
