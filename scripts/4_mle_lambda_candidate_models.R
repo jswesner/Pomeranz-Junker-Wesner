@@ -150,7 +150,7 @@ loo_6 <- loo(mod6,
 
 # Allegedly you should be able to set seed=TRUE for the future package, but can't figure out how to do it. 
 
-# The results I got previously (before the update) were  for now, I'm using as-is
+# The results I got previously (before the update) were similar for now, I'm using as-is
 
 (b_weights <- loo_model_weights(
   list(global1 = loo_1,
@@ -175,8 +175,9 @@ mod_best <- update(mod5,
 
 
 saveRDS(mod_best, "results/b_mat_c_brms.RDS")
+#mod_best <- readRDS("results/b_mat_c_brms.RDS")
 
-
+# function to caluclate probability that coef is < or > 0
 beta_0 <- function(model, b_est){
   post <- posterior_samples(model)
   less <- sum(post[[b_est]] < 0)/ nrow(post)
@@ -184,6 +185,7 @@ beta_0 <- function(model, b_est){
   list(less = less, more = more)
 }
 
+# summary of candidate models ####
 
 temp_beta_b <- bind_rows(fixef(mod1)["mat.c",],
                          fixef(mod2)["mat.c",],
@@ -208,6 +210,28 @@ temp_beta_b$mod <- c("Global",
 temp_beta_b$weight <- round(b_weights, 3)
 saveRDS(temp_beta_b, "results/b_mat_coef_table.RDS")
 temp_beta_b <- readRDS("results/b_mat_coef_table.RDS")
+
+# summary of best model ####
+
+# probability that ISD exponent is negatively related to mat.c
+beta_0(mod_best, "b_mat.c")$less
+
+# Range of site-specific median ISD exponents
+mod_best %>%
+  spread_draws(b_Intercept,
+               r_siteID[siteID, term],
+               r_year[year, term],
+               b_mat.c) %>%
+  filter(.iteration < 1000) %>%
+  left_join(abiotic_s[,c("mat.c", "siteID")]) %>%
+  mutate(
+    fitted_b =
+      (b_Intercept + r_siteID + r_year) + #intercept
+      b_mat.c * mat.c) %>%
+  group_by(siteID) %>%
+  summarize(med_isd = median(fitted_b)) %>%
+  arrange(med_isd) %>%
+  slice(c(1, n()))
 
 # plots with tidybayes ----------------------------------------------------
 

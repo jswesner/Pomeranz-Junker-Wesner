@@ -157,6 +157,7 @@ mod_best <- update(mod4,
                    sample_prior = TRUE,
                    cores = 10)
 saveRDS(mod_best, "results/log_mg_mat_can_brms.RDS")
+#mod_best <- readRDS("results/log_mg_mat_can_brms.RDS")
 
 # summary out puts --------------------------------------------------------
 
@@ -166,6 +167,7 @@ beta_0 <- function(model, b_est){
   more <- sum(post[[b_est]] > 0)/ nrow(post)
   list(less = less, more = more)
 }
+
 temp_beta_log_mg <- bind_rows(fixef(mod1)["mat.c",],
                               fixef(mod2)["mat.c",],
                               fixef(mod3)["mat.c",],
@@ -200,6 +202,29 @@ plot(conditional_effects(mod4), points = TRUE)
 fixef(mod5)
 plot(conditional_effects(mod5), points = TRUE)
 
+
+# summary of best model ####
+
+# probability that ISD exponent is negatively related to mat.c
+beta_0(mod_best, "b_mat.c")$less
+beta_0(mod_best, "b_canopy")$less
+
+# Range of site-specific median ISD exponents
+mod_best %>%
+  spread_draws(b_Intercept,
+               r_siteID[siteID, term],
+               r_year[year, term],
+               b_mat.c) %>%
+  filter(.iteration < 1000) %>%
+  left_join(abiotic_s[,c("mat.c", "siteID")]) %>%
+  mutate(
+    fitted_b =
+      (b_Intercept + r_siteID + r_year) + #intercept
+      b_mat.c * mat.c) %>%
+  group_by(siteID) %>%
+  summarize(med_isd = median(fitted_b)) %>%
+  arrange(med_isd) %>%
+  slice(c(1, n()))
 
 # Save data for plots -----------------------------------------------------
 
