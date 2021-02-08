@@ -529,3 +529,56 @@ ggsave(s9_plot,
        dpi = 500,
        width = 7,
        height = 5)
+
+
+# figure S10 --------------------------------------------------------------
+
+
+# fig S10####
+ID_key <- readRDS("data/sample_ID_key.RDS")
+# read in explanatory variables
+abiotic <- read.csv("data/abiotic.csv")
+# standardize variables
+abiotic_s <- scale(abiotic[,2:8]) 
+# remove scaled attributes (mean and SD for each column)
+scaled_attr <- attributes(abiotic_s)
+# make scaled values into data frame and add siteID
+abiotic_s <- as.data.frame(abiotic_s)
+abiotic_s$siteID <- abiotic$Site
+
+# # read in b-exponent and biomass data and wrangle objects
+MLEbins <- readRDS("data/MLEbins.RDS")
+MLEbins <- MLEbins[,c("siteID", "ID", "year", "sampleEvent", "b")]
+
+biomass <- readRDS("data/mean_biomass.RDS")
+biomass <- biomass[,c("siteID", "ID", "year",
+                      "sampleEvent", "u_biomass")]
+
+# join data sets
+d <- left_join(MLEbins, biomass)
+d <- left_join(d, abiotic_s)
+d <- left_join(d, ID_key)
+
+# log 10 mean dry weight estimate
+d$log_mg <- log10(d$u_biomass)
+
+s_10 <- ggplot(d,
+       aes(y = log_mg,
+           x = b,
+           color = mat.c)) +
+  geom_point(size = 2.5, alpha = 0.9) +
+  scale_color_viridis_c(option = "plasma") +
+  theme_bw() +
+  labs(y = "Log10 Community biomass", 
+       x = "ISD exponent") +
+  #stat_smooth(aes(x = b, y = log_mg),method = "lm", inherit.aes = FALSE) +
+  NULL
+
+ggsave(s_10,
+       "plots/potential_SI_biomass_by_ISD.png",
+       width = 10,
+       height = 8,
+       dpi = 300)
+
+summary(lm(log_mg ~ b, data = d))
+summary(lm(b ~ log_mg, data = d))

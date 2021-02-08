@@ -214,16 +214,17 @@ mod_best %>%
   spread_draws(b_Intercept,
                r_siteID[siteID, term],
                r_year[year, term],
-               b_mat.c) %>%
+               b_mat.c,
+               b_canopy) %>%
   filter(.iteration < 1000) %>%
-  left_join(abiotic_s[,c("mat.c", "siteID")]) %>%
+  left_join(abiotic_s[,c("mat.c", "canopy", "siteID")]) %>%
   mutate(
     fitted_b =
       (b_Intercept + r_siteID + r_year) + #intercept
-      b_mat.c * mat.c) %>%
+      b_mat.c * mat.c + b_canopy*canopy) %>%
   group_by(siteID) %>%
-  summarize(med_isd = median(fitted_b)) %>%
-  arrange(med_isd) %>%
+  summarize(med_biom = median(fitted_b)) %>%
+  arrange(med_biom) %>%
   slice(c(1, n()))
 
 # Save data for plots -----------------------------------------------------
