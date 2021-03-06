@@ -95,6 +95,7 @@ mod6 <- update(mod1,
                formula. = . ~ . -map.mm,
                cores = 4)
 
+
 # summarize model coefficients for SI ####
 coef_mods_list <- list(global = as.data.frame(fixef(mod1)),
                        nutrient = as.data.frame(fixef(mod2)),
@@ -170,14 +171,13 @@ round(fixef(mod6), 3)
 # Rerun best model with prior samples
 # "best" model is mod
 mod_best <- update(mod5,
-                   sample_prior = TRUE,
-                   cores = 10)
+                   sample_prior = TRUE)
 
 
 saveRDS(mod_best, "results/b_mat_c_brms.RDS")
-#mod_best <- readRDS("results/b_mat_c_brms.RDS")
+mod_best <- readRDS("results/b_mat_c_brms.RDS")
 
-# function to caluclate probability that coef is < or > 0
+# function to calculate probability that coef is < or > 0
 beta_0 <- function(model, b_est){
   post <- posterior_samples(model)
   less <- sum(post[[b_est]] < 0)/ nrow(post)
@@ -241,10 +241,17 @@ if(!dir.exists("plots")){
 }
 
 # plots with tidybayes
-get_variables(mod5)
+get_variables(mod_best)
 
 # plot fitted b
-b_post_plot <- mod5 %>%
+mat.c <- data.frame(mat.c =unique(d$mat.c))
+
+mat_raw <- abiotic %>% select(Site, mat.c) %>% rename(siteID = Site,mat_raw = mat.c) %>% left_join(abiotic_s %>% select(siteID, mat.c)) %>%
+  select(-siteID) %>% 
+  right_join(mat.c) %>% 
+  distinct(mat.c, mat_raw)
+
+(b_post_plot <- mod_best %>%
   spread_draws(b_Intercept,
                r_siteID[siteID, term],
                r_year[year, term],
@@ -255,22 +262,22 @@ b_post_plot <- mod5 %>%
     fitted_b =
       (b_Intercept + r_siteID + r_year) + #intercept
       b_mat.c * mat.c) %>%
+  left_join(mat_raw) %>% 
   ggplot(aes(x = fitted_b,
-             fill = mat.c,
-             y = reorder(siteID, mat.c)))+
-  stat_halfeye(interval_color = "black",
-               point_color = "black") +
+             fill = mat_raw,
+             y = reorder(siteID, mat_raw))) +
+  stat_halfeye() +
   scale_fill_viridis_c(option = "plasma") +
   theme_bw() +
   labs(y = "Site",
        x = "ISD exponent") +
-  NULL
+  NULL)
 
 #ggsave("plots/b_mat_c_post_dist.jpg")
 saveRDS(b_post_plot, "plots/b_mat_c_post_dist.RDS")
 
 # global median of exponent
-mod5 %>%
+mod_best %>%
   spread_draws(b_Intercept,
                r_siteID[siteID, term],
                r_year[year, term],
@@ -286,7 +293,7 @@ mod5 %>%
             upper = quantile(fitted_b, probs = 0.95))
 
 # Site-specific medians
-mod5 %>%
+mod_best %>%
   spread_draws(b_Intercept,
                r_siteID[siteID, term],
                r_year[year, term],
@@ -294,7 +301,7 @@ mod5 %>%
   left_join(abiotic_s[,c("mat.c", "siteID")]) %>%
   mutate(
     fitted_b =
-      (b_Intercept + r_siteID + r_year) +
+      (b_Intercept + r_siteID) +
       b_mat.c * mat.c) %>%
   ungroup() %>%
   group_by(siteID) %>%
@@ -305,30 +312,22 @@ mod5 %>%
   slice(1, n())
 
 
-(b_fit_plot <- d %>%
-  modelr::data_grid(
-    siteID = siteID,
-    year = year,
-    #log_mg = log_mg,
-    mat.c = seq(min(mat.c),
-                max(mat.c), 
-                length.out = 10)) %>%
-  add_fitted_draws(mod5) %>%
-  ggplot(aes(
-    x = mat.c, 
-    y = b)) +
-  stat_lineribbon(aes(y = .value),
-                  .width = 0.95,
-                  alpha = 0.7
-  ) +
-  scale_fill_manual(values = c("gray80")) +
-  geom_point(aes(color = mat.c),
+post_fits <- fitted(mod_best, newdata = data.frame(mat.c = unique(d$mat.c)),
+                    re_formula = NA) %>% as_tibble() %>% clean_names() %>% 
+  mutate(mat.c = unique(d$mat.c)) %>% 
+  left_join(mat_raw)
+
+(b_fit_plot <- post_fits %>% 
+    ggplot(aes(x = mat_raw)) + 
+    geom_ribbon(aes(ymin = q2_5, ymax = q97_5), alpha = 0.2) + 
+    geom_line(aes(y = estimate)) + 
+    geom_point(data = d %>% left_join(mat_raw), aes(color = mat_raw, y = b),
              size = 2.5, 
-             alpha = 0.8,
-             data = d) +
+             alpha = 0.8) +
   scale_color_viridis_c(option = "plasma") +
+    guides(color = F) +
   labs(y = "ISD exponent",
-       x = "Standardized Mean Annual Temperature",
+       x = expression("Mean Annual Temperature " ( degree*C)),
        color = "Temperature") +
   theme_bw() )
 

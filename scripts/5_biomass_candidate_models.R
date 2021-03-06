@@ -8,6 +8,9 @@ library(tidyverse)
 library(brms)
 library(tidybayes)
 library(viridis)
+library(ggdist)
+library(scales)
+library(janitor)
 
 ID_key <- readRDS("data/sample_ID_key.RDS")
 # read in explanatory variables
@@ -35,36 +38,36 @@ d <- left_join(biomass, abiotic_s)
 
 # log 10 mean dry weight estimate
 d$log_mg <- log10(d$u_biomass)
-
+d$scale_mg <- d$u_biomass/max(d$u_biomass)
+d$biomass_g <- d$u_biomass/1000
 
 # community biomass models ------------------------------------------------
 
 # global model using standardized variables
 # temperature + nutrients + canopy
 mod1 <- brm(data = d,
-            log_mg ~ mat.c + map.mm + tdn + tdp + canopy +
+            biomass_g ~ mat.c + map.mm + tdn + tdp + canopy +
               (1 |siteID) + (1|year), 
             family = Gamma(link = "log"),
             prior =
               # 95% of slope prior between -1 and 1
               # response is on log10 scale
               # log-link exponentiates
-              c(prior(normal(0,0.5),
+              c(prior(normal(0, 1),
                       class = "b"),
                 # 95% of intercept prior between 
                 # -3.5 and 0.5
                 # i.e., exponent value at mean values of
                 # all standardized variables 
-                prior(normal(1.1, 0.25), 
+                prior(normal(0,2), 
                       class = "Intercept"),
-                prior(exponential(2),
+                prior(exponential(1),
                       class="sd")),
             chains = 4, 
             sample_prior = FALSE,
-            iter = 6000,
-            cores = 8,
-            control = list(adapt_delta = 0.99)
-)
+            iter = 2000,
+            cores = 4)
+
 
 # temp + nutrients
 mod2 <- update(mod1, formula. = . ~ . -canopy -map.mm,
@@ -78,13 +81,28 @@ mod4 <- update(mod1,
                cores = 8)
 # just temperature
 mod5 <- update(mod1,
-               formula. = . ~ . -map.mm -tdn -tdp -canopy,
-               cores = 8)
+               formula. = . ~ . -map.mm -tdn -tdp -canopy)
 # resources - autochthonous resources = TDN +TDP
-# Allochthonous rtesources = canopy
+# Allochthonous resources = canopy
 mod6 <- update(mod1,
                formula. = . ~ . -map.mm,
                cores = 8)
+
+dir.create("models_jsw")
+saveRDS(mod1, file = "models_jsw/mod1.rds")
+saveRDS(mod2, file = "models_jsw/mod2.rds")
+saveRDS(mod3, file = "models_jsw/mod3.rds")
+saveRDS(mod4, file = "models_jsw/mod4.rds")
+saveRDS(mod5, file = "models_jsw/mod5.rds")
+saveRDS(mod6, file = "models_jsw/mod6.rds")
+
+mod1 <- readRDS(file = "models_jsw/mod1.rds")
+mod2 <- readRDS(file = "models_jsw/mod2.rds")
+mod3 <- readRDS(file = "models_jsw/mod3.rds")
+mod4 <- readRDS(file = "models_jsw/mod4.rds")
+mod5 <- readRDS(file = "models_jsw/mod5.rds")
+mod6 <- readRDS(file = "models_jsw/mod6.rds")
+
 
 # leave-one-out cross validation with bayesian stacking weights
 loo_1 <- loo(mod1,
@@ -110,6 +128,22 @@ loo_6 <- loo(mod6,
              reloo = TRUE,
              seed = TRUE,
              cores = 6)
+
+
+saveRDS(loo_1, file = "models_jsw/loo_1.rds")
+saveRDS(loo_2, file = "models_jsw/loo_2.rds")
+saveRDS(loo_3, file = "models_jsw/loo_3.rds")
+saveRDS(loo_4, file = "models_jsw/loo_4.rds")
+saveRDS(loo_5, file = "models_jsw/loo_5.rds")
+saveRDS(loo_6, file = "models_jsw/loo_6.rds")
+
+
+loo_1 <- readRDS(file = "models_jsw/loo_1.rds")
+loo_2 <- readRDS(file = "models_jsw/loo_2.rds")
+loo_3 <- readRDS(file = "models_jsw/loo_3.rds")
+loo_4 <- readRDS(file = "models_jsw/loo_4.rds")
+loo_5 <- readRDS(file = "models_jsw/loo_5.rds")
+loo_6 <- readRDS(file = "models_jsw/loo_6.rds")
 
 # note on warnings:
 # reloo uses the future package internally, and the future package recently updated to throw a warning when random numbers are generated.
@@ -152,12 +186,24 @@ write_csv(coef_mods_table, "results/all_biomass_model_coef.csv")
        T_only = loo_5,
        resource = loo_6)))
 
-# Rerun best model with prior samples and save
-mod_best <- update(mod4,
-                   sample_prior = TRUE,
-                   cores = 10)
-saveRDS(mod_best, "results/log_mg_mat_can_brms.RDS")
+
+# Rerun temp model with prior samples and save
+mod_best <- update(mod5,
+                   sample_prior = TRUE, iter = 1000, chains = 4)
+# saveRDS(mod_best, "results/mod_best_biomass.RDS")
 #mod_best <- readRDS("results/log_mg_mat_can_brms.RDS")
+
+
+mod_avg_params <- posterior_average(mod3, mod6, weights = "stacking") %>% 
+  clean_names() %>% as_tibble()
+
+mod_avg_b <- mod_avg_params %>% 
+  select(b_intercept, b_mat_c) %>% 
+  pivot_longer(cols = everything()) %>% 
+  group_by(name) %>% 
+  summarize(median = median(value),
+            upper = quantile(value, probs = 0.975),
+            lower = quantile(value, probs = 0.025))
 
 # summary out puts --------------------------------------------------------
 
@@ -192,40 +238,25 @@ temp_beta_log_mg$mod <- c("Global",
 temp_beta_log_mg$weight <- round(b_weights, 3)
 saveRDS(temp_beta_log_mg, "results/log_mg_mat_coef_table.RDS")
 
-# "best" model coefficients, probability < 0
-fixef(mod4)
-beta_0(mod4, "b_mat.c")$less
-beta_0(mod4, "b_canopy")$less
-
-# conditional effects plot
-plot(conditional_effects(mod4), points = TRUE)
-fixef(mod5)
-plot(conditional_effects(mod5), points = TRUE)
+# "averaged" model coefficients, probability < 0
+mod_avg_params %>% select(!contains("site")) %>%
+  summarize(across(everything(), ~sum(.x>0))/nrow(.))
 
 
-# summary of best model ####
+#site_specific posteriors from model averaged
+mod_avg_site <- mod_avg_params %>% select(!contains(c("shape", "year", "sd_site"))) %>% 
+  pivot_longer(cols = c(-b_intercept, -b_mat_c)) %>% 
+  mutate(siteID = str_to_upper(str_sub(name, 11,14))) %>% 
+  left_join(d %>% select(siteID, mat.c) %>% distinct()) %>% 
+  mutate(biomass_g = b_intercept + b_mat_c*mat.c + value)
 
-# probability that ISD exponent is negatively related to mat.c
-beta_0(mod_best, "b_mat.c")$less
-beta_0(mod_best, "b_canopy")$less
 
-# Range of site-specific median ISD exponents
-mod_best %>%
-  spread_draws(b_Intercept,
-               r_siteID[siteID, term],
-               r_year[year, term],
-               b_mat.c,
-               b_canopy) %>%
-  filter(.iteration < 1000) %>%
-  left_join(abiotic_s[,c("mat.c", "canopy", "siteID")]) %>%
-  mutate(
-    fitted_b =
-      (b_Intercept + r_siteID + r_year) + #intercept
-      b_mat.c * mat.c + b_canopy*canopy) %>%
-  group_by(siteID) %>%
-  summarize(med_biom = median(fitted_b)) %>%
-  arrange(med_biom) %>%
-  slice(c(1, n()))
+# Range of site-specific median biomass
+mod_avg_site %>% 
+  group_by(siteID) %>% 
+  summarize(median = median(exp(biomass_g))) %>% 
+  slice(c(which.min(median), which.max(median)))
+
 
 # Save data for plots -----------------------------------------------------
 
@@ -235,84 +266,67 @@ if(!dir.exists("plots")){
   dir.create("plots")
 }
 
-# plot fitted log 10 mg mat.c coefficient
-mg_dist_plot <- mod4 %>%
-  spread_draws(b_Intercept,
-               r_siteID[siteID, term],
-               r_year[year, term],
-               b_mat.c,
-               b_canopy) %>%
-  left_join(abiotic_s) %>%
-  mutate(
-    fitted_log_mg =
-      (b_Intercept + r_siteID + r_year) + #intercept
-      b_mat.c * mat.c + b_canopy * canopy) %>%
-  ggplot(aes(x = fitted_log_mg,
-             fill = mat.c,
-             y = reorder(siteID, mat.c)))+
-  stat_halfeye(interval_color = "black",
-               point_color = "black") +
-  scale_fill_viridis_c(option = "plasma") +
+
+mod_avg_site_raw <-mod_avg_site %>% 
+  left_join(abiotic %>% select(Site, mat.c) %>% rename(siteID = Site,mat_raw = mat.c))
+
+# plot densities
+(mg_dist_plot <- mod_avg_site_raw %>% 
+  ggplot(aes(x = exp(biomass_g),
+             fill = mat_raw,
+             y = reorder(siteID, mat_raw))) +
+  stat_halfeye() +
+  scale_fill_viridis_c(option = "plasma", 
+                       name = expression("Mean Annual\nTemperature " ( degree*C))) +
   theme_bw() +
+  scale_x_log10() +
   labs(y = "Site",
-       x = "Log10 mg dry weight per m2") +
-  NULL
+       x = bquote("Grams dry weight per" ~m^2)) +
+  NULL)
 
 
 saveRDS(mg_dist_plot, "plots/log_mg_mat_canopy_post_dist.RDS")
 
-mg_fit_mat <- d %>%
-  modelr::data_grid(
-    siteID = siteID,
-    year = year,
-    canopy = 0,
-    #log_mg = log_mg,
-    mat.c = seq(min(mat.c),
-                max(mat.c), 
-                length.out = 10)) %>%
-  add_fitted_draws(mod4) %>%
+
+# compute model average across temp, holding everything else to average (i.e., 0).
+# Gives an error about pareto-k. But for all models, the pareto k diagnostics are good or ok using print(loo_1), print(loo_2), etc. So ignore
+
+mod_avg <- pp_average(mod3, mod6,
+                      newdata = data.frame(mat.c = unique(d$mat.c),
+                                           tdn = 0,
+                                           tdp = 0,
+                                           map.mm = 0),
+                      re_formula = NA,
+                      method = 'pp_expect') %>%
+  as_tibble() %>% clean_names() 
+
+mat.c <- data.frame(mat.c =unique(d$mat.c))
+
+mat_raw <- abiotic %>% select(Site, mat.c) %>% rename(siteID = Site,mat_raw = mat.c) %>% left_join(abiotic_s %>% select(siteID, mat.c)) %>%
+  select(-siteID) %>% 
+  right_join(mat.c) %>% 
+  distinct(mat.c, mat_raw)
+
+# plot model_averaged biomass vs mat raw coefficient
+mg_fit_mat <- mod_avg %>%
+  mutate(mat.c = mat_raw$mat.c,
+         mat_raw = mat_raw$mat_raw) %>% 
   ggplot(aes(
-    x = mat.c, 
-    y = log_mg)) +
-  stat_lineribbon(aes(y = .value),
-                  .width = c(0.95),
-                  alpha = 0.7
-  ) +
+    x = mat_raw, 
+    y = estimate)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = q2_5, ymax = q97_5), alpha = 0.2) +
   scale_fill_manual(values = c("gray80")) +
   # scale_fill_grey()+#start = 0.2, end = 0.7) +
-  geom_point(aes(color = mat.c),
+  geom_point(data = d %>% left_join(mat_raw), aes(y = biomass_g, color = mat_raw),
              size = 2.5, 
-             alpha = 0.8,
-             data = d) +
+             alpha = 0.8) +
   scale_color_viridis_c(option = "plasma") +
-  theme_bw()
+  scale_y_log10() +
+  theme_bw() +
+  guides(color = F) +
+  labs(x = expression("Mean Annual Temperature " ( degree*C)),
+       y = bquote("Grams dry weight per" ~m^2))
 
 saveRDS(mg_fit_mat, "plots/log_mg_mat.RDS")
 
-
-mg_fit_can <- d %>%
-  modelr::data_grid(
-    siteID = siteID,
-    year = year,
-    mat.c = 0,
-    canopy = seq(min(canopy),
-                max(canopy), 
-                length.out = 10)) %>%
-  add_fitted_draws(mod4) %>%
-  ggplot(aes(
-    x = canopy, 
-    y = log_mg)) +
-  stat_lineribbon(aes(y = .value),
-                  .width = c(0.95),
-                  alpha = 0.7
-  ) +
-  scale_fill_manual(values = c("gray80")) +
-  # scale_fill_grey()+#start = 0.2, end = 0.7) +
-  geom_point(aes(color = canopy),
-             size = 2.5, 
-             alpha = 0.8,
-             data = d) +
-  scale_color_viridis_c(option = "plasma") +
-  theme_bw()
-
-saveRDS(mg_fit_can, "plots/log_mg_can.RDS")

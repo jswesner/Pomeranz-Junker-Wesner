@@ -31,12 +31,14 @@ site.info <- read.csv("data/aquatic-field-sites.csv")
 (map <- ggplot() +
         geom_polygon(data = world,
                      aes(x = long, y = lat, group = group),
-                             color = "white") +
+                             color = "white",
+                     fill = "grey") +
         geom_polygon(data = states,
                      aes(x = long,
                          y = lat,
                          group =group),
-                     color = "white") +
+                     color = "white",
+                     fill = "grey") +
         coord_quickmap(ylim = c(18,70),
                        xlim = c(-160,-50))+
         geom_point(data = site.info,
@@ -49,8 +51,11 @@ site.info <- read.csv("data/aquatic-field-sites.csv")
                    shape = 21) +
         scale_fill_viridis_c(option = "plasma") +
         scale_color_viridis_c(option = "plasma") +
-        theme_map()
+                labs(color = expression("Mean Annual\nTemperature " ( degree*C))) +
+                guides(fill = F) +
+        theme_void()
 )
+
 ggsave(map,
        file = "plots/map.png",
        width = 10,
@@ -60,60 +65,18 @@ ggsave(map,
 
 # Figure 2 main text ------------------------------------------------------
 
-#load models
-b_mat_c_brms <- readRDS("~/GitHub/Pomeranz-Junker-Wesner/results/b_mat_c_brms.RDS")
-log_mg_mat_can_brms <- readRDS("~/GitHub/Pomeranz-Junker-Wesner/results/log_mg_mat_can_brms.RDS")
-
-#extract conditional effects
-bmat_cond <- conditional_effects(b_mat_c_brms, probs = c(.025, 0.975))
-log_mg_cond <- conditional_effects(log_mg_mat_can_brms, effects = "mat.c", probs = c(.025, 0.975))
-
-bmat_cond.df <- bmat_cond$mat.c %>% as_tibble() 
-log_mg_cond.df <- log_mg_cond$mat.c %>% as_tibble() 
-
-#load data
-mat_c_data <- b_mat_c_brms$data 
-log_mg_data <- log_mg_mat_can_brms$data
-
 
 #plot main figure
 
-
-c2 <- ggplot(data = mat_c_data, aes(x = mat.c, y = b)) +
-        geom_ribbon(data = bmat_cond.df, aes(ymax = upper__, ymin = lower__),
-                    alpha = 0.2) +
-        geom_line(data = bmat_cond.df, aes(y = estimate__), size = 1) +
-        geom_point(aes(color = mat.c), size = 1.5) +
-        scale_color_viridis(option = 'C') +
-        theme_bw() +
-        theme(legend.position = "none") +
-        labs(y = "ISD exponent",
-             x = "Standardized Mean Annual Temperature") +
-        guides(color = F) +
-        theme(axis.title.x = element_blank())
-
-
-d2 <- ggplot(data = log_mg_data, aes(x = mat.c, y = log_mg)) +
-        geom_ribbon(data = log_mg_cond.df, aes(ymax = upper__, ymin = lower__),
-                    alpha = 0.2) +
-        geom_line(data = log_mg_cond.df, aes(y = estimate__), size = 1) +
-        geom_point(aes(color = mat.c), size = 1.5) +
-        scale_color_viridis(option = 'C') +
-        theme_bw() +
-        labs(y = expression(
-                "Log10 Dry Mass mg/"~m^2),
-             x = "Standardized Mean Annual Temperature") +
-        theme(legend.position = "top")
-
-legend <- get_legend(d2)
-
-# c2 <- readRDS("plots/b_mat_c.RDS")
-# d2 <- readRDS("plots/log_mg_mat.RDS")
+c2 <- readRDS("plots/b_mat_c.RDS")
+d2 <- readRDS("plots/log_mg_mat.RDS")
 
 
 main_plot <- plot_grid(
         c2 ,
-        d2 +guides(color = F) ,
+        d2 +guides(color = F) +
+                labs(y = expression(
+                        "Macroinvertebrate Dry Mass g/"~m^2)),
         ncol = 1,
         align = "vh",
         labels = "auto")
@@ -145,14 +108,13 @@ post_plot <- plot_grid(
                 labs(x ="ISD exponent"),
         f3 + 
                 theme_bw() + 
-                guides(fill = guide_legend(
-                        title = "Std(Temp.)")) +
         labs(x = expression(
-                "Macroinvertebrate Dry Mass mg/"~m^2)),
+                "Macroinvertebrate Dry Mass g/"~m^2)),
         ncol = 2,
         align = "h",
         axis = "b",
-        rel_widths = c(1, 1.3))
+        rel_widths = c(1, 1.55),
+        labels = "auto")
 post_plot
 
 ggsave(post_plot,

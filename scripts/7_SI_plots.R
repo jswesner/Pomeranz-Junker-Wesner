@@ -21,20 +21,13 @@ ID_mat <- b.mod.data %>%
   select(ID, mat.c)
 
 
-biomass.mod <- readRDS("results/log_mg_mat_can_brms.RDS")
-biomass.mod.data <- readRDS("data/mean_biomass.RDS")
+biomass.clim <- readRDS("models_jsw/mod3.rds")
+biomass.resource <- readRDS("models_jsw/mod6.rds")
+biomass.mod.data <- biomass.clim$data %>% left_join(biomass.resource$data)
 
 abiotic <- read.csv("data/abiotic.csv")[,c(1,5)]
 names(abiotic) <- c("siteID", "canopy")
 abiotic$canopy <- scale(abiotic$canopy)
-
-biomass.mod.data <- left_join(biomass.mod.data, abiotic)
-biomass.mod.data <- biomass.mod.data %>%
-  left_join(ID_mat)
-
-
-fixef(b.mod)
-fixef(biomass.mod)
 
 
 
@@ -75,53 +68,63 @@ prior_post_b <- draws_b_long %>%
   theme_classic()
 
 
+biomass.clim_post <- posterior_samples(biomass.clim) %>% mutate(model = "Climate Model",
+                                                                prior_intercept = rnorm(nrow(.), 0, 2),
+                                                                prior_b_mat.c = rnorm(nrow(.), 0, 1),
+                                                                prior_b_map.mm = rnorm(nrow(.), 0, 1),
+                                                                prior_sd_site = rexp(nrow(.), 1),
+                                                                prior_sd_year = rexp(nrow(.), 1),
+                                                                prior_shape = rgamma(nrow(.), 0.01, 0.01))
 
-draws_dm_long <- posterior_samples(biomass.mod) %>%
+biomass.resource_post <- posterior_samples(biomass.resource) %>% mutate(model = "Resource Model",
+                                                                prior_intercept = rnorm(nrow(.), 0, 2),
+                                                                prior_b_mat.c = rnorm(nrow(.), 0, 1),
+                                                                prior_b_tdn = rnorm(nrow(.), 0, 1),
+                                                                prior_b_tdp = rnorm(nrow(.), 0, 1),
+                                                                prior_b_canopy =rnorm(nrow(.), 0, 1),
+                                                                prior_sd_site = rexp(nrow(.), 1),
+                                                                prior_sd_year = rexp(nrow(.), 1),
+                                                                prior_shape = rgamma(nrow(.), 0.01, 0.01))
+
+
+biomass_posts <- bind_rows(biomass.clim_post, biomass.resource_post) %>%
   as_tibble() %>%
   clean_names() %>%
   mutate(iter = 1:nrow(.)) %>% 
   select(!contains(c("r_site", "r_year", "lp"))) %>% 
-  pivot_longer(cols = -iter) %>% 
+  pivot_longer(cols = c(-model, -iter))
+
+draws_dm_long <-  biomass_posts %>% 
   mutate(parameter = case_when(
-    name == "b_intercept" ~ "intercept",
-    name == "b_mat_c" ~ "b_mat_c",
-    name == "b_canopy" ~ "b_canopy",
-    name == "sd_site_id_intercept" ~ "sd_site_id",
-    name == "sd_year_intercept" ~ "sd_year",
+    name == "sd_site_id_intercept" ~ "\u03c3_s",
+    name == "sd_year_intercept" ~ "\u03c3_y",
+    grepl("mat.c", name) ~ "\u03b2_mat_c",
+    grepl("intercept", name) ~ "\u03b1",
+    grepl("mm", name) ~ "\u03b2_map.mm",
+    grepl("tdn", name) ~ "\u03b2_tdn",
+    grepl("tdp", name) ~ "\u03b2_tdp",
+    grepl("canopy", name) ~ "\u03b2_canopy",
     grepl("shape", name) ~ "shape",
-    name == "prior_intercept" ~ "intercept",
-    name == "prior_b" ~ "b_mat_c",
-    name == "prior_sd_site_id" ~ "sd_site_id",
-    name == "prior_sd_year" ~ "sd_year"),
-    model = case_when(grepl("prior", name) ~ "prior", TRUE ~ "posterior")) %>% 
+    name == "prior_sd_site" ~ "\u03c3_s",
+    name == "prior_sd_year" ~ "\u03c3_y",
+    TRUE ~ name),
+    post_prior = case_when(grepl("prior", name) ~ "prior", TRUE ~ "posterior")) %>% 
   select(-name)
 
-prior_b_2 <- draws_dm_long %>%
-  filter(parameter == "b_mat_c",
-         model == "prior") %>%
-  mutate(parameter = case_when(
-    parameter == "b_mat_c" ~ "b_canopy"
-  ))
-
-draws_dm_long <- bind_rows(draws_dm_long, prior_b_2)
 
 
 prior_post_dm <- draws_dm_long %>% 
-  mutate(parameter = case_when(
-    parameter == "b_mat_c" ~ "\u03b2_mat_c",
-    parameter == "b_canopy" ~ "\u03b2_canopy",
-    parameter == "intercept" ~ "\u03b1",
-    parameter == "sd_site_id" ~ "\u03c3_s",
-    parameter == "sd_year" ~ "\u03c3_y",
-    parameter == "shape" ~ "shape")) %>% 
-  ggplot(aes(x = value, y = ..scaled.., fill = model)) + 
+  ggplot(aes(x = value, y = ..scaled.., fill = post_prior)) + 
   geom_density() +
-  facet_wrap(~parameter, scales = "free") +
+  facet_grid(parameter ~ model, scales = "free") +
   scale_fill_manual(values = c("black", "NA")) +
   labs(y = "Scaled Density", 
        x = "Parameter Value") +
-  theme_classic()
+  theme_classic() +
+  xlim(NA, 4) +
+  theme(axis.text.y = element_text(size = 8))
 
+ggsave(prior_post_dm, file = "plots/prior_post_dm.jpg", dpi = 500, width = 6, height = 7.5)
 
 # Figures S2 and S3 -------------------------------------------------------
 
@@ -207,46 +210,15 @@ plot_slope_postprior <- post_prior_predict %>%
   NULL
 
 # prepare data for panel c and d
-draws_dm_wide <- draws_dm_long %>%
-  pivot_wider(names_from = "parameter", values_from = "value")
+post_prior_predict <- posterior_samples(biomass.mod) %>% select(!starts_with("r_")) %>% 
+  mutate(iter = 1:nrow(.)) %>% 
+  sample_n(1000) %>% 
+  expand_grid(mat.c = biomass.mod.data$mat.c) %>% 
+  mutate(prior_y = exp(prior_Intercept + prior_b*mat.c),
+         posterior_y = exp(b_Intercept + b_mat.c*mat.c)) %>% 
+  pivot_longer(cols = c(prior_y, posterior_y)) %>% 
+  separate(name, c("model", "y"))
 
-mean_site_sds <- draws_dm_wide %>%
-  group_by(model) %>%
-  summarize(mean_site_sds = mean(sd_site_id))
-mean_year_sds <- draws_dm_wide %>%
-  group_by(model) %>%
-  summarize(mean_year_sds = mean(sd_year))
-
-#add predictor variable(s)
-draws_dm_withx <- draws_dm_wide %>%
-  group_by(model) %>% 
-  sample_n(1000) %>%  #randomly choose 2000 iterations from each group to save space
-  expand_grid(mat.c = unique(b.mod.data$mat.c),
-              canopy = 0) %>% #add degree days
-  left_join(b.mod.data %>% distinct(mat.c, siteID, year)) #add info for site and year
-
-
-#calculate random offsets for intercepts
-site_offsets <- draws_dm_withx %>%
-  distinct(model, iter) %>% 
-  left_join(mean_site_sds) %>% 
-  mutate(site_offset = rnorm(nrow(.), 0, mean_site_sds))
-
-year_offsets <- draws_dm_withx %>%
-  distinct(model, iter) %>% 
-  left_join(mean_year_sds) %>% 
-  mutate(year_offset = rnorm(nrow(.), 0, mean_year_sds))
-
-#solve model equation at each iteration
-post_prior_predict <- draws_dm_withx %>% 
-  left_join(site_offsets) %>% 
-  left_join(year_offsets) %>% 
-  mutate(fitted = exp(intercept + b_mat_c*mat.c + b_canopy*canopy), #solve equation at each iteration. log-link is indicated by the exp().
-         pred = case_when(
-           model == "prior" ~
-             exp(intercept + site_offset + year_offset + 
-                   b_mat_c*mat.c + b_canopy*canopy),
-                          TRUE ~ fitted)) #same but with random offsets added.
 
 # fig S1 panel c and d
 plot_biomass_postprior <- post_prior_predict %>%
@@ -256,19 +228,19 @@ plot_biomass_postprior <- post_prior_predict %>%
            case_when(model == "prior" ~ "c) Prior",
                      TRUE ~ "d) Posterior")) %>% 
   ggplot(aes(x = mat.c,
-             y = pred)) + 
-  geom_line(aes(group = interaction(model,b_mat_c)),
+             y = value)) + 
+  geom_line(aes(group = iter),
             alpha = 0.1) +
   facet_wrap(~model) +
   guides(color = F) +
-  labs(y = expression(paste("Community Biomass (mgDM/",m^2,")")),
+  labs(y = expression(paste("Macroinvertebrate dry mass (g/",m^2,")")),
        x = "Std(Mean Annual Temperature") +
   geom_point(
     data = biomass.mod.data %>%
       mutate(model = "d) Posterior",
              model = fct_relevel(model,"d) Posterior",
                                  after = 2)),
-    aes(y = log10(u_biomass)),
+    aes(y = biomass_g),
     size = 0.5) +
   theme_classic() +
   scale_y_log10() +
@@ -290,11 +262,18 @@ ggsave(prior_post_preds,
 
 # Posterior Predictive Checks # Figs S4 and S5 ---------------------------------------------
 
-pp_check(b.mod, type = "boxplot")
-ggsave("plots/SI5_b_pp.jpg")
+pp_bmod <- pp_check(b.mod, type = "boxplot")
+ggsave(pp_bmod, file = "plots/SI5_b_pp.jpg")
 
-pp_check(biomass.mod, type = "boxplot")
-ggsave("plots/SI6_biomass_pp.jpg")
+pp_clim <- pp_check(biomass.clim, type = "boxplot") +
+  labs(title = "a) Climate Model")
+pp_clim
+pp_resource <- pp_check(biomass.resource, type = "boxplot") +
+  labs(title = "b) Resources Model")
+
+pp_climresource <- plot_grid(pp_clim, pp_resource, nrow = 2, align = "h")
+
+ggsave(pp_climresource, file = "plots/SI6_biomass_pp.jpg", width = 5, height = 5)
 
 
 
@@ -303,75 +282,137 @@ ggsave("plots/SI6_biomass_pp.jpg")
 
 # slope model
 # update the slope model by halving the SD prior values
-b.mod_sd0.5 <- update(b.mod,
-                      b.mod,
-                      prior = c(prior(normal(0,0.125),
-                                      class = "b"),
-                                prior(normal(-1.5,0.5),
-                                      class = "Intercept"),
-                                prior(exponential(1),
-                                      class = "sigma"),
-                                prior(exponential(1),
-                                      class = "sd")),
-                      iter = 1000,
-                      cores = 2,
-                      chains = 2)
 
-# update the slope model by doubling the SD prior values
-b.mod_sd2 <- update(b.mod,
-                    b.mod,
-                    prior = c(prior(normal(-0,0.5),
-                                    class = "b"),
-                              prior(normal(-1.5,2),
-                                    class = "Intercept"),
-                              prior(exponential(4),
-                                    class = "sigma"),
-                              prior(exponential(4),
-                                    class = "sd")),
-                    iter = 1000,
-                    cores = 2,
-                    chains = 2)
+b.mod_sd0.5 <- readRDS("results/b.mod_sd0.5.rds")
+b.mod_sd2 <- readRDS("results/b.mod_sd2.rds")
+biomass.clim_sd0.5 <- readRDS("results/biomass.clim_sd0.5.rds")
+biomass.clim_sd2 <- readRDS("results/biomass.clim_sd2.rds")
+biomass.res_sd0.5 <- readRDS("results/biomass.res_sd0.5.rds")
+biomass.res_sd2 <- readRDS("results/biomass.res_sd2.rds")
 
+# b.mod_sd0.5 <- brm(data = b.mod.data,
+#                    b ~ mat.c +
+#                      (1 |siteID) + (1|year), 
+#                    family = gaussian(),
+#                    prior =
+#                      c(prior(normal(0,0.12),
+#                              class = "b"),
+#                        prior(normal(-1.5, .5), 
+#                              class = "Intercept"),
+#                        prior(exponential(2),
+#                              class="sd"),
+#                        prior(exponential(2),
+#                              class="sigma")),
+#                    chains = 4, 
+#                    sample_prior = FALSE,
+#                    iter = 1000,
+#                    cores = 4)
+# 
+# saveRDS(b.mod_sd0.5, file = "results/b.mod_sd0.5.rds")
+# 
+# # update the slope model by doubling the SD prior values
+# b.mod_sd2 <- brm(data = b.mod.data,
+#                  b ~ mat.c +
+#                    (1 |siteID) + (1|year), 
+#                  family = gaussian(),
+#                  prior =
+#                    c(prior(normal(0,0.5),
+#                            class = "b"),
+#                      prior(normal(-1.5, 2), 
+#                            class = "Intercept"),
+#                      prior(exponential(2),
+#                            class="sd"),
+#                      prior(exponential(2),
+#                            class="sigma")),
+#                  chains = 4, 
+#                  sample_prior = FALSE,
+#                  iter = 1000,
+#                  cores = 4)
+# 
+# saveRDS(b.mod_sd2, file = "results/b.mod_sd2.rds")
+# 
+# 
+# # biomass model
+# # update the biomass model by halving the SD prior values
+# biomass.clim_sd0.5 <- brm(data = biomass.mod.data,
+#                           biomass_g ~ mat.c + map.mm +
+#                             (1 |siteID) + (1|year), 
+#                           family = Gamma(link = "log"),
+#                           prior =
+#                             c(prior(normal(0, 0.5),
+#                                     class = "b"),
+#                               prior(normal(0,1), 
+#                                     class = "Intercept"),
+#                               prior(exponential(1),
+#                                     class="sd")),
+#                           chains = 4, 
+#                           sample_prior = FALSE,
+#                           iter = 1000,
+#                           cores = 4)
+# 
+# saveRDS(biomass.clim_sd0.5, file = "results/biomass.clim_sd0.5.rds")
+# 
+# # update the biomass model by doubling the SD prior values
+# biomass.clim_sd2 <- brm(data = biomass.mod.data,
+#                           biomass_g ~ mat.c + map.mm +
+#                             (1 |siteID) + (1|year), 
+#                           family = Gamma(link = "log"),
+#                           prior =
+#                             c(prior(normal(0, 2),
+#                                     class = "b"),
+#                               prior(normal(0,4), 
+#                                     class = "Intercept"),
+#                               prior(exponential(1),
+#                                     class="sd")),
+#                           chains = 4, 
+#                           sample_prior = FALSE,
+#                           iter = 1000,
+#                           cores = 4)
+# 
+# saveRDS(biomass.clim_sd2, file = "results/biomass.clim_sd2.rds")
+# 
+# 
+# # update the biomass model by halving the SD prior values
+# biomass.res_sd0.5 <- brm(data = biomass.mod.data,
+#                           biomass_g ~ mat.c + map.mm + tdn + tdp + canopy +
+#                             (1 |siteID) + (1|year), 
+#                           family = Gamma(link = "log"),
+#                           prior =
+#                             c(prior(normal(0, 0.5),
+#                                     class = "b"),
+#                               prior(normal(0,1), 
+#                                     class = "Intercept"),
+#                               prior(exponential(1),
+#                                     class="sd")),
+#                           chains = 4, 
+#                           sample_prior = FALSE,
+#                           iter = 1000,
+#                           cores = 4)
+# 
+# saveRDS(biomass.res_sd0.5, file = "results/biomass.res_sd0.5.rds")
+# 
+# # update the biomass model by doubling the SD prior values
+# biomass.res_sd2 <- brm(data = biomass.mod.data,
+#                         biomass_g ~ mat.c + map.mm + tdn + tdp + canopy +
+#                           (1 |siteID) + (1|year), 
+#                         family = Gamma(link = "log"),
+#                         prior =
+#                           c(prior(normal(0, 2),
+#                                   class = "b"),
+#                             prior(normal(0,4), 
+#                                   class = "Intercept"),
+#                             prior(exponential(1),
+#                                   class="sd")),
+#                         chains = 4, 
+#                         sample_prior = FALSE,
+#                         iter = 1000,
+#                         cores = 4)
+# 
+# saveRDS(biomass.res_sd2, file = "results/biomass.res_sd2.rds")
+# 
+# 
+# 
 
-
-# biomass model
-# update the biomass model by halving the SD prior values
-biomass.mod_sd0.5 <- brm(log10(u_biomass) ~ mat.c + canopy +
-                           (1|siteID) +
-                           (1|year),
-                       data = biomass.mod.data,
-                       family = Gamma(link = "log"),
-                       prior = c(prior(normal(0, 0.25),
-                                       class = "b"),
-                                 prior(normal(1.1, 0.125),
-                                       class = "Intercept"),
-                                 prior(gamma(0.01, 0.01),
-                                       class = "shape"),
-                                 prior(exponential(1),
-                                       class = "sd")),
-                       chains = 2,
-                       cores = 2,
-                       iter = 1000,
-                       sample_prior = TRUE)
-
-# update the biomass model by doubling the SD prior values
-biomass.mod_sd2 <- brm(log10(u_biomass) ~ mat.c + canopy +
-                         (1|siteID) +
-                         (1|year),
-                   data = biomass.mod.data,
-                   family = Gamma(link = "log"),
-                   prior = c(prior(normal(0, 1),
-                                   class = "b"),
-                             prior(normal(1.1, 0.5),
-                                   class = "Intercept"),
-                             prior(gamma(0.01, 0.01),
-                                   class = "shape"),
-                             prior(exponential(4),
-                                   class = "sd")),
-                   chains = 2,
-                   cores = 2,
-                   iter = 1000,
-                   sample_prior = TRUE)
 
 
 # compare posterior samples
@@ -379,52 +420,85 @@ biomass.mod_sd2 <- brm(log10(u_biomass) ~ mat.c + canopy +
 posts_b_model <- posterior_samples(b.mod) %>%
   clean_names() %>%
   mutate(model = "original model",
-         response = "b exponent model")
+         response = "b exponent model",
+         version = "Temperature")
 
 posts_b_sd0.5 <- posterior_samples(b.mod_sd0.5) %>%
   clean_names() %>%
   mutate(model = "sdx0.5",
-         response = "b exponent model")
+         response = "b exponent model",
+         version = "Temperature")
 
 posts_b_sd2 <- posterior_samples(b.mod_sd2) %>%
   clean_names() %>%
   mutate(model = "sdx2",
-         response = "b exponent model")
+         response = "b exponent model",
+         version = "Temperature")
 
-# biomass model
-posts_dmmodel <- posterior_samples(biomass.mod) %>%
+# biomass models
+posts_dmmodel_res <- posterior_samples(biomass.clim) %>%
   clean_names() %>%
   mutate(model = "original model",
-         response = "Community Biomass")
+         response = "Community Biomass",
+         version = "Climate")
 
-posts_dmsd0.5 <- posterior_samples(biomass.mod_sd0.5) %>%
+posts_dmsd0.5_res <- posterior_samples(biomass.clim_sd0.5) %>%
   clean_names() %>% 
   mutate(model = "sdx0.5",
-         response = "Community Biomass")
+         response = "Community Biomass",
+         version = "Climate")
 
-posts_dmsd2 <- posterior_samples(biomass.mod_sd2) %>%
+posts_dmsd2_res <- posterior_samples(biomass.clim_sd2) %>%
   clean_names() %>%
   mutate(model = "sdx2",
-         response = "Community Biomass")
+         response = "Community Biomass",
+         version = "Climate")
+
+
+posts_dmmodel_clim <- posterior_samples(biomass.resource) %>%
+  clean_names() %>%
+  mutate(model = "original model",
+         response = "Community Biomass",
+         version = "Resources")
+
+posts_dmsd0.5_clim <- posterior_samples(biomass.res_sd0.5) %>%
+  clean_names() %>% 
+  mutate(model = "sdx0.5",
+         response = "Community Biomass",
+         version = "Resources")
+
+posts_dmsd2_clim <- posterior_samples(biomass.res_sd2) %>%
+  clean_names() %>%
+  mutate(model = "sdx2",
+         response = "Community Biomass",
+         version = "Resources")
 
 
 all_b_sens <- bind_rows(posts_b_model,
                         posts_b_sd0.5,
                         posts_b_sd2,
-                        posts_dmmodel,
-                        posts_dmsd0.5,
-                        posts_dmsd2) %>% 
-  pivot_longer(cols = c("b_intercept", "b_mat_c", "b_canopy"))
+                        posts_dmmodel_clim,
+                        posts_dmsd0.5_clim,
+                        posts_dmsd2_clim,
+                        posts_dmmodel_res,
+                        posts_dmsd0.5_res,
+                        posts_dmsd2_res) %>% 
+  select(!contains(c("site_id", "lp", "year"))) %>% 
+  pivot_longer(cols = c(-model, -response, -version)) %>% 
+  mutate(wrap = paste(response, "-", version))
 
 (prior_sens_plot <- all_b_sens %>% 
   mutate(name = case_when(name == "b_mat_c" ~ "\u03b2_mat", 
                           name == "b_intercept" ~ "\u03b1",
-                          name == "b_canopy" ~ "\u03b2_canopy")) %>% 
+                          name == "b_canopy" ~ "\u03b2_canopy",
+                          name == "b_tdn" ~ "\u03b2_tdn",
+                          name == "b_tdp" ~ "\u03b2_tdp",
+                          name == "b_map_mm" ~ "\u03b2_map_mm")) %>% 
   ggplot(aes(x = value,
              color = model,
              y = ..scaled..)) +
   geom_density() + 
-  facet_wrap(response~name,
+  facet_grid(name~wrap,
              scales = "free") +
   scale_color_brewer(type = "qual",
                      palette = 7) +
@@ -436,8 +510,8 @@ all_b_sens <- bind_rows(posts_b_model,
 ggsave(prior_sens_plot,
        file = "plots/SI7_prior_sens.jpg",
        dpi = 500,
-       width = 7,
-       height = 5)
+       width = 8,
+       height = 7)
 
 # Fig S8 ####
 # effect of canopy cover on log10 biomass in streams across the NEON sites
