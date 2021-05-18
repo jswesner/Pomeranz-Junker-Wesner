@@ -10,6 +10,7 @@ library(ggthemes)
 library(brms)
 library(viridis)
 library(ggridges)
+library(here)
 
 # create plots directory, if it doesn't already exist.
 # this should have already been run in script 4, but including here in case people run scripts out of order. 
@@ -135,10 +136,10 @@ ggsave(post_plot,
 lit <- read_csv("data/temp_summaries_table.csv") %>% 
         filter(Include == "Y")
 
-library(ggthemes)
+mod_best <- readRDS("results/b_mat_c_brms.RDS")
 
-range_bmat <- fitted(b_mat_c_brms, newdata = data.frame(mat.c = c(min(b_mat_c_brms$data$mat.c),
-                                                                  max(b_mat_c_brms$data$mat.c))),
+range_bmat <- fitted(mod_best, newdata = data.frame(mat.c = c(min(mod_best$data$mat.c),
+                                                                  max(mod_best$data$mat.c))),
                                                         re_formula = NA, summary = F) %>% 
         as.data.frame() %>% rename(min = V1, max = V2) %>% 
         mutate(abs_diff = abs(min - max))
@@ -156,7 +157,7 @@ range_bmat_summary <- range_bmat %>% summarize(mean = median(abs_diff),
                 mutate(Driver = fct_relevel(Driver, "Temperature", "Land Use")) %>% 
                 ggplot(aes(x = reorder(Author, -b_diff), y = b_diff)) +
                 coord_flip() +
-                geom_segment(aes(y= 0, yend = b_diff, xend = reorder(Author, -b_diff))) +
+                # geom_segment(aes(y= 0, yend = b_diff, xend = reorder(Author, -b_diff))) +
                 geom_point(aes(shape = Driver, fill = Driver), size = 4) +
                 geom_hline(yintercept = range_bmat_summary$mean) +
                 annotate("text", x = 12, y = 0.7, label = "This study (median and 95% CrI)") +
