@@ -158,7 +158,8 @@ range_bmat_summary <- range_bmat %>% summarize(mean = median(abs_diff),
                 ggplot(aes(x = reorder(Author, -b_diff), y = b_diff)) +
                 coord_flip() +
                 # geom_segment(aes(y= 0, yend = b_diff, xend = reorder(Author, -b_diff))) +
-                geom_point(aes(shape = Driver, fill = Driver), size = 4) +
+                geom_pointrange(aes(ymin =b_diff - error, ymax = b_diff + error, shape = Driver, 
+                                    fill = Driver), size = 1) +
                 geom_hline(yintercept = range_bmat_summary$mean) +
                 annotate("text", x = 12, y = 0.7, label = "This study (median and 95% CrI)") +
                 geom_rect(aes(xmin = 0, xmax = 13, ymin = range_bmat_summary$lower, 

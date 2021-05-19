@@ -1,15 +1,15 @@
-Author,b_diff,b_low,b_high,System,Temp Range,Driver,Notes,Method,Include,prop_diff
-Dossena et al. 2012 (April),0.22,-0.51,-0.73,FW mesocosms,4C above ambient,Temperature,Fig. 1a (April),log10_bins,Y,0.5
-Dossena et al. 2012 (October),0.07,-0.48,-0.41,FW mesocosms,4C above ambient,Temperature,Fig. 1c (October),log10_bins,Y,1.571428571
-Yvon Durocher et al. 2011 (Community),0.13,-0.79,-0.92,FW mesocosms,4C above ambient,Temperature,Fig. 1a (community spectrum),log10_bins,Y,0.846153846
-Yvon Durocher et al. 2011 (Phytoplankton),0.19,-0.46,-0.65,FW mesocosms,4C above ambient,Temperature,Fig. 1d (Phytoplankton spectrum,log10_bins,Y,0.578947368
-O'Gorman et al. 2017,0.15,-0.85,-0.7,Streams,5 to 25C,Temperature,Fig. 1 - extracted with ImageJ. ,ln-ln_abundance,Y,0.733333333
-McGarvey and Kirk,0.19,-1.81,-1.62,Streams,Seasonal,Temperature,"don’t included - values are just spatial variation, not driven by land use or temp",,Y,0.578947368
-Pomeranz et al. 2021,0.12,-1.37,-1.25,Streams,(-)6 to 25C,Temperature,don't include. Values in original figure (Fig. 4) are estimates from other papers.,,N,0.916666667
-Pomeranz et al. 2019,0.46,-1.08,-0.62,Streams,,Acid Mining Pollution,Fig. 3 - extracted from ImageJ,log2_bins,Y,0.239130435
-Robinson et al. 2016,0.53,-1.91,-1.38,Marine,,Fishing Pressure,Fig. 2a - extracted with ImageJ,mle,Y,0.20754717
-Blanchard et al. 2005,0.4,-1.82,-1.42,Marine,,Fishing Pressure,"Fig. 1 - extracted with ImageJ. Extracted from a time series. In the paper, effects are attributed mostly to fishing and less to temperature.",log2_biomass,Y,0.275
-Jennings and Blanchard 2004,0.9,-1,-0.1,Marine,,Fishing Pressure,"Fig. 5 - compared emperical size spectrum under fishing pressure to hypothetical ""no pressure"" spectrum assuming trophic efficiency of 0.125, which yields a slope estimate of -0.1",log10_biomass,Y,0.122222222
-Martinez et al. 2016,0.15,-1.11,-0.96,Streams,,Land Use,Fig. 2,log10_bins,Y,0.733333333
-Sprules and Munawar 1986,0.3,-1.25,-0.95,Lakes,,Phosphorous,don't include. Values in original figure (Fig. 4) are estimates from other papers.,,N,0.366666667
-Dulvy et al. 2004,0.006,0.03,0.024,Marine,,Fishing Pressure,Fig. 3a  - extracted from ImageJ,log10_abundance,Y,18.33333333
+Author,b_diff,error,error_type,b_low,b_high,System,Temp Range,Driver,Notes,Method,Include,prop_diff
+Dossena et al. 2012 (April),0.21,0.064,se,,,FW mesocosms,4C above ambient,Temperature,Fig. 1a (April),log10_bins,Y,0.5
+Dossena et al. 2012 (October),0.14,0.07,se,,,FW mesocosms,4C above ambient,Temperature,Fig. 1c (October),log10_bins,Y,1.6
+Yvon Durocher et al. 2011 (Community),0.13,,,-0.79,-0.92,FW mesocosms,4C above ambient,Temperature,Fig. 1a (community spectrum),log10_bins,Y,0.8
+Yvon Durocher et al. 2011 (Phytoplankton),0.19,,,-0.46,-0.65,FW mesocosms,4C above ambient,Temperature,Fig. 1d (Phytoplankton spectrum,log10_bins,Y,0.6
+O'Gorman et al. 2017,0.15,,,-0.85,-0.7,Streams,5 to 25C,Temperature,Fig. 1 - extracted with ImageJ. ,ln-ln_abundance,Y,0.7
+McGarvey and Kirk,0.19,,,-1.81,-1.62,Streams,Seasonal,Temperature,"don’t included - values are just spatial variation, not driven by land use or temp",,Y,0.6
+Pomeranz et al. 2021,0.12,,,-1.37,-1.25,Streams,(-)6 to 25C,Temperature,don't include. Values in original figure (Fig. 4) are estimates from other papers.,,N,0.9
+Pomeranz et al. 2019,0.46,,,-1.08,-0.62,Streams,,Acid Mining Pollution,Fig. 3 - extracted from ImageJ,log2_bins,Y,0.2
+Robinson et al. 2016,0.53,,,-1.91,-1.38,Marine,,Fishing Pressure,Fig. 2a - extracted with ImageJ,mle,Y,0.2
+Blanchard et al. 2005,0.4,,,-1.82,-1.42,Marine,,Fishing Pressure,"Fig. 1 - extracted with ImageJ. Extracted from a time series. In the paper, effects are attributed mostly to fishing and less to temperature.",log2_biomass,Y,0.3
+Jennings and Blanchard 2004,0.9,,,-1,-0.1,Marine,,Fishing Pressure,"Fig. 5 - compared emperical size spectrum under fishing pressure to hypothetical ""no pressure"" spectrum assuming trophic efficiency of 0.125, which yields a slope estimate of -0.1",log10_biomass,Y,0.1
+Martinez et al. 2016,0.15,,,-1.11,-0.96,Streams,,Land Use,Fig. 2,log10_bins,Y,0.7
+Sprules and Munawar 1986,0.3,,,-1.25,-0.95,Lakes,,Phosphorous,don't include. Values in original figure (Fig. 4) are estimates from other papers.,,N,0.4
+Dulvy et al. 2004,0.006,,,0.03,0.024,Marine,,Fishing Pressure,Fig. 3a  - extracted from ImageJ,log10_abundance,Y,18.3
