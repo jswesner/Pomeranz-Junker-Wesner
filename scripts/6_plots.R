@@ -177,7 +177,7 @@ range_bmat_summary <- range_bmat %>% summarize(mean = median(abs_diff),
                 ylim(0,1))
 
 
-ggsave(lit_plot, file = "plots/lit_plot.jpg", width = 9, height = 3.5, units = "in")
+ggsave(lit_plot, file = "plots/lit_plot.jpg", width = 9, height = 3.5, units = "in", dpi = 500)
 
 
 
